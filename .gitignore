@@ -27,3 +27,9 @@ AQUATOX Users Manual.html
 AQUATOX Users Manual_files/
 foodweb*.xls
 foodweb*.xlsx
+
+# Generated simulation outputs
+all_series.csv
+foodweb_export.xlsx
+outflow_series.csv
+waterflow*.csv
