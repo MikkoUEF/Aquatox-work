@@ -1,12 +1,15 @@
 # tests/test_stage1.py
 import math
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 
 from aquatox.core import Simulation, ODESolver, Environment
-from aquatox.state import StateVariable, Nutrient, Biota
-from aquatox.io_utils import ScenarioIO
+from aquatox.state import StateVariable, Nutrient, Biota, Oxygen, Phosphorus, Toxicant
+from aquatox.io_utils import ScenarioIO, OBJID_MAP
+
+DATA_DIR = Path(__file__).parent.parent
 
 # ---- Helpers ----
 class ConstantRateVar(StateVariable):
@@ -26,7 +29,7 @@ def _mk_env_with_flows(v0=1000.0, inflow=10.0, outflow=5.0, days=2):
         inflow_series=inflow_series, outflow_series=outflow_series
     ), t0
 
-# ---- Tests ----
+# ---- Stage-1 tests ----
 def test_euler_integrator_constant_rate_step():
     env, t0 = _mk_env_with_flows()
     x = ConstantRateVar(name="X", value=0.0, units="arb", c=5.0)  # dX/dt = 5
@@ -60,3 +63,32 @@ def test_biota_growth_minus_mortality():
     sim.solver.integrate(sim.state_vars, env, t0, dt_days=1.0)
     # Net rate = (0.2 - 0.1)*1.0 = 0.1 -> value should be 1.1
     assert b.value == pytest.approx(1.1, rel=1e-6)
+
+# ---- Stage-2 parser tests ----
+def test_pyhajarvi_nutrients_parsed():
+    """Pyhäjärvi: Phosphorus and Oxygen are recognised from ObjID."""
+    _, svars = ScenarioIO.load_initial_conditions(str(DATA_DIR / "LakePyhajarviFinland.txt"))
+    classes = {type(sv).__name__ for sv in svars}
+    assert "Phosphorus" in classes, f"Phosphorus missing, got: {classes}"
+    assert "Oxygen" in classes, f"Oxygen missing, got: {classes}"
+
+def test_ontario_toxicants_parsed():
+    """Lake Ontario PCBs: TToxics objects (ObjID 1006) are parsed as Toxicant."""
+    _, svars = ScenarioIO.load_initial_conditions(str(DATA_DIR / "Lake Ontario PCBs.txt"))
+    toxicants = [sv for sv in svars if isinstance(sv, Toxicant)]
+    assert len(toxicants) > 0, "No Toxicant instances found in Ontario scenario"
+    # Spot-check: first one should be a dissolved PCB
+    assert "PCB" in toxicants[0].name or "tox" in toxicants[0].name.lower()
+
+def test_objid_classification():
+    """OBJID_MAP: ObjID 1027 → Oxygen, 1025 → Phosphorus, 1006 → Toxicant."""
+    cases = [
+        ({"name": "Dissolved Oxygen", "initial": 8.0, "units": "mg/L", "objid": 1027}, Oxygen),
+        ({"name": "Total P", "initial": 0.05, "units": "mg/L", "objid": 1025}, Phosphorus),
+        ({"name": "Dissolved org. tox 1: [PCB 18]", "initial": 0.0, "units": "ppb", "objid": 1006}, Toxicant),
+    ]
+    for record, expected_cls in cases:
+        sv = ScenarioIO._make_state_var(record)
+        assert isinstance(sv, expected_cls), (
+            f"ObjID {record['objid']}: expected {expected_cls.__name__}, got {type(sv).__name__}"
+        )

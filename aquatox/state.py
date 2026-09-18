@@ -78,3 +78,48 @@ class Animal(Biota):
     def rate(self, t: Date, dt: float, env: Environment, state_vars: List["StateVariable"]) -> float:
         # Stage-1: same as Biota; consumption wiring will arrive in Stage-2/3
         return super().rate(t, dt, env, state_vars)
+
+# ---------------------------
+# Nutrient specialisations
+# ---------------------------
+@dataclass
+class Oxygen(Nutrient):
+    threshold: float = 3.0  # mg/L, anoxia threshold
+
+    def __init__(self, name, value, units, threshold=3.0):
+        super().__init__(name=name, value=value, units=units, form="O2")
+        self.threshold = threshold
+
+@dataclass
+class CarbonDioxide(Nutrient):
+    import_equilibrium: bool = False
+
+    def __init__(self, name, value, units, import_equilibrium=False):
+        super().__init__(name=name, value=value, units=units, form="CO2")
+        self.import_equilibrium = import_equilibrium
+
+@dataclass
+class Nitrate(Nutrient):
+    def __init__(self, name, value, units):
+        super().__init__(name=name, value=value, units=units, form="NO3")
+
+@dataclass
+class Phosphorus(Nutrient):
+    frac_avail: float = 1.0
+    use_total_p: bool = False
+
+    def __init__(self, name, value, units, frac_avail=1.0, use_total_p=False):
+        super().__init__(name=name, value=value, units=units, form="PO4")
+        self.frac_avail = frac_avail
+        self.use_total_p = use_total_p
+
+# ---------------------------
+# Toxicant
+# ---------------------------
+@dataclass
+class Toxicant(StateVariable):
+    ppb: float = 0.0
+    carrier_nstate: int = -1  # linked carrier state index
+
+    def rate(self, t: Date, dt: float, env: Environment, state_vars: List["StateVariable"]) -> float:
+        return 0.0
